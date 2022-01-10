@@ -195,6 +195,8 @@ void runBinaryDistanceAnySize(
         Tensor<int, 2, true>& outV,
         int k,
         cudaStream_t stream) {
+    std::cerr << "HH runBinaryDistanceAnySize" << std::endl;
+
     dim3 grid(utils::divUp(query.getSize(0), kWarps));
     dim3 block(kLanes, kWarps);
 
@@ -236,6 +238,8 @@ void runBinaryDistanceLimitSize(
         Tensor<int, 2, true>& outV,
         int k,
         cudaStream_t stream) {
+    std::cerr << "HH runBinaryDistanceLimitSize" << std::endl;
+
     dim3 grid(utils::divUp(query.getSize(0), kWarps));
     dim3 block(kLanes, kWarps);
 
@@ -276,6 +280,7 @@ void runBinaryDistance(
         Tensor<int, 2, true>& outV,
         int k,
         cudaStream_t stream) {
+    std::cerr << "HH runBinaryDistance" << std::endl;
     FAISS_ASSERT(k <= GPU_MAX_SELECTION_K);
     FAISS_ASSERT(vecs.getSize(1) == query.getSize(1));
 

@@ -45,6 +45,7 @@ GpuIndexBinaryFlat::GpuIndexBinaryFlat(
         : IndexBinary(dims),
           resources_(provider->getResources()),
           binaryFlatConfig_(std::move(config)) {
+    std::cerr << "HH GpuIndexBinaryFlat" << std::endl;
     FAISS_THROW_IF_NOT_FMT(
             this->d % 8 == 0,
             "vector dimension (number of bits) "
@@ -56,8 +57,12 @@ GpuIndexBinaryFlat::GpuIndexBinaryFlat(
 
     // Construct index
     DeviceScope scope(binaryFlatConfig_.device);
+    GpuResources* res = resources_.get();
+    int dim = this->d;
+    MemorySpace space = binaryFlatConfig_.memorySpace;
+
     data_.reset(new BinaryFlatIndex(
-            resources_.get(), this->d, binaryFlatConfig_.memorySpace));
+            res, dim, space));
 }
 
 GpuIndexBinaryFlat::~GpuIndexBinaryFlat() {}
