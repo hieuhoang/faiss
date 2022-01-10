@@ -14,6 +14,7 @@
 #include <faiss/utils/hamming.h>
 
 TEST(BinaryFlat, accuracy) {
+    std::cerr << "HH" << std::endl;
     // dimension of the vectors to index
     int d = 64;
 
