@@ -5,14 +5,61 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include <faiss/gpu/GpuFaissAssert.h>
-#include <faiss/gpu/utils/DeviceUtils.h>
+//#include <faiss/gpu/GpuFaissAssert.h>
+//#include <faiss/gpu/utils/DeviceUtils.h>
 #include <cstring>
 #include <limits>
 
 namespace faiss {
 namespace gpu {
 
+#define CUDA_VERIFY2(X)                      \
+    do {                                    \
+        auto err__ = (X);                   \
+    } while (0)
+
+inline int getDeviceForAddress2(const void* p) {
+    if (!p) {
+        return -1;
+    }
+
+    cudaPointerAttributes att;
+    cudaError_t err = cudaPointerGetAttributes(&att, p);
+    /*
+    FAISS_ASSERT_FMT(
+            err == cudaSuccess || err == cudaErrorInvalidValue,
+            "unknown error %d",
+            (int)err);
+    */
+
+    if (err == cudaErrorInvalidValue) {
+        // Make sure the current thread error status has been reset
+        err = cudaGetLastError();
+        /*
+        FAISS_ASSERT_FMT(
+                err == cudaErrorInvalidValue, "unknown error %d", (int)err);
+        */
+        return -1;
+    }
+
+    // memoryType is deprecated for CUDA 10.0+
+#if CUDA_VERSION < 10000
+    if (att.memoryType == cudaMemoryTypeHost) {
+        return -1;
+    } else {
+        return att.device;
+    }
+#else
+    // FIXME: what to use for managed memory?
+    if (att.type == cudaMemoryTypeDevice) {
+        return att.device;
+    } else {
+        return -1;
+    }
+#endif
+}
+
+//////////////////////////////////////////////////////////////////////////
 template <
         typename T,
         int Dim,
@@ -137,7 +184,7 @@ __host__ __device__ Tensor<T, Dim, InnerContig, IndexT, PtrTraits>::Tensor(
         DataPtrType data,
         std::initializer_list<IndexT> sizes)
         : data_(data) {
-    GPU_FAISS_ASSERT(sizes.size() == Dim);
+    //GPU_FAISS_ASSERT(sizes.size() == Dim);
     static_assert(Dim > 0, "must have > 0 dimensions");
 
     int i = 0;
@@ -182,22 +229,22 @@ __host__ void Tensor<T, Dim, InnerContig, IndexT, PtrTraits>::copyFrom(
         const Tensor<T, Dim, InnerContig, IndexT, PtrTraits>& t,
         cudaStream_t stream) {
     // The tensor must be fully contiguous
-    GPU_FAISS_ASSERT(this->isContiguous());
+    //GPU_FAISS_ASSERT(this->isContiguous());
 
     // Size must be the same (since dimensions are checked and
     // continuity is assumed, we need only check total number of
     // elements
-    GPU_FAISS_ASSERT(this->numElements() == t.numElements());
+    //GPU_FAISS_ASSERT(this->numElements() == t.numElements());
 
     if (t.numElements() > 0) {
-        GPU_FAISS_ASSERT(this->data_);
-        GPU_FAISS_ASSERT(t.data());
+        //GPU_FAISS_ASSERT(this->data_);
+        //GPU_FAISS_ASSERT(t.data());
 
-        int ourDev = getDeviceForAddress(this->data_);
-        int tDev = getDeviceForAddress(t.data());
+        int ourDev = getDeviceForAddress2(this->data_);
+        int tDev = getDeviceForAddress2(t.data());
 
         if (tDev == -1) {
-            CUDA_VERIFY(cudaMemcpyAsync(
+            CUDA_VERIFY2(cudaMemcpyAsync(
                     this->data_,
                     t.data(),
                     this->getSizeInBytes(),
@@ -205,7 +252,7 @@ __host__ void Tensor<T, Dim, InnerContig, IndexT, PtrTraits>::copyFrom(
                                  : cudaMemcpyHostToDevice,
                     stream));
         } else {
-            CUDA_VERIFY(cudaMemcpyAsync(
+            CUDA_VERIFY2(cudaMemcpyAsync(
                     this->data_,
                     t.data(),
                     this->getSizeInBytes(),
@@ -227,22 +274,22 @@ __host__ void Tensor<T, Dim, InnerContig, IndexT, PtrTraits>::copyTo(
         Tensor<T, Dim, InnerContig, IndexT, PtrTraits>& t,
         cudaStream_t stream) {
     // The tensor must be fully contiguous
-    GPU_FAISS_ASSERT(this->isContiguous());
+    //GPU_FAISS_ASSERT(this->isContiguous());
 
     // Size must be the same (since dimensions are checked and
     // continuity is assumed, we need only check total number of
     // elements
-    GPU_FAISS_ASSERT(this->numElements() == t.numElements());
+    //GPU_FAISS_ASSERT(this->numElements() == t.numElements());
 
     if (t.numElements() > 0) {
-        GPU_FAISS_ASSERT(this->data_);
-        GPU_FAISS_ASSERT(t.data());
+        //GPU_FAISS_ASSERT(this->data_);
+        //GPU_FAISS_ASSERT(t.data());
 
-        int ourDev = getDeviceForAddress(this->data_);
-        int tDev = getDeviceForAddress(t.data());
+        int ourDev = getDeviceForAddress2(this->data_);
+        int tDev = getDeviceForAddress2(t.data());
 
         if (tDev == -1) {
-            CUDA_VERIFY(cudaMemcpyAsync(
+            CUDA_VERIFY2(cudaMemcpyAsync(
                     t.data(),
                     this->data_,
                     this->getSizeInBytes(),
@@ -250,7 +297,7 @@ __host__ void Tensor<T, Dim, InnerContig, IndexT, PtrTraits>::copyTo(
                                  : cudaMemcpyDeviceToHost,
                     stream));
         } else {
-            CUDA_VERIFY(cudaMemcpyAsync(
+            CUDA_VERIFY2(cudaMemcpyAsync(
                     t.data(),
                     this->data_,
                     this->getSizeInBytes(),
@@ -272,16 +319,16 @@ __host__ void Tensor<T, Dim, InnerContig, IndexT, PtrTraits>::copyFrom(
         const std::vector<T>& v,
         cudaStream_t stream) {
     // The tensor must be fully contiguous
-    GPU_FAISS_ASSERT(this->isContiguous());
+    //GPU_FAISS_ASSERT(this->isContiguous());
 
     // Size must be the same
-    GPU_FAISS_ASSERT(this->numElements() == v.size());
+    //GPU_FAISS_ASSERT(this->numElements() == v.size());
 
     if (v.size() > 0) {
-        GPU_FAISS_ASSERT(this->data_);
-        int ourDev = getDeviceForAddress(this->data_);
+        //GPU_FAISS_ASSERT(this->data_);
+        int ourDev = getDeviceForAddress2(this->data_);
 
-        CUDA_VERIFY(cudaMemcpyAsync(
+        CUDA_VERIFY2(cudaMemcpyAsync(
                 this->data_,
                 v.data(),
                 this->getSizeInBytes(),
@@ -300,18 +347,18 @@ template <
 __host__ std::vector<T> Tensor<T, Dim, InnerContig, IndexT, PtrTraits>::
         copyToVector(cudaStream_t stream) {
     // The tensor must be fully contiguous
-    GPU_FAISS_ASSERT(this->isContiguous());
+    //GPU_FAISS_ASSERT(this->isContiguous());
 
     std::vector<T> out(this->numElements());
 
     if (!out.empty()) {
-        int ourDev = getDeviceForAddress(this->data_);
+        int ourDev = getDeviceForAddress2(this->data_);
 
         if (ourDev == -1) {
             std::memcpy(
                     out.data(), this->data_, this->numElements() * sizeof(T));
         } else {
-            CUDA_VERIFY(cudaMemcpyAsync(
+            CUDA_VERIFY2(cudaMemcpyAsync(
                     out.data(),
                     this->data_,
                     this->numElements() * sizeof(T),
@@ -433,7 +480,7 @@ __host__ __device__ Tensor<U, Dim, InnerContig, IndexT, PtrTraits> Tensor<
     static_assert(sizeof(U) >= sizeof(T), "only handles greater sizes");
     constexpr int kMultiple = sizeof(U) / sizeof(T);
 
-    GPU_FAISS_ASSERT(canCastResize<U>());
+    //GPU_FAISS_ASSERT(canCastResize<U>());
 
     IndexT newSize[Dim];
     IndexT newStride[Dim];
@@ -520,7 +567,7 @@ __host__ Tensor<T, Dim, InnerContig, NewIndexT, PtrTraits> Tensor<
         IndexT,
         PtrTraits>::castIndexType() const {
     if (sizeof(NewIndexT) < sizeof(IndexT)) {
-        GPU_FAISS_ASSERT(this->canUseIndexType<NewIndexT>());
+        //GPU_FAISS_ASSERT(this->canUseIndexType<NewIndexT>());
     }
 
     NewIndexT newSize[Dim];
@@ -673,13 +720,13 @@ __host__ __device__ Tensor<T, Dim, InnerContig, IndexT, PtrTraits> Tensor<
         InnerContig,
         IndexT,
         PtrTraits>::transpose(int dim1, int dim2) const {
-    GPU_FAISS_ASSERT(dim1 >= 0 && dim1 < Dim);
-    GPU_FAISS_ASSERT(dim2 >= 0 && dim2 < Dim);
+    //GPU_FAISS_ASSERT(dim1 >= 0 && dim1 < Dim);
+    //GPU_FAISS_ASSERT(dim2 >= 0 && dim2 < Dim);
 
     // If a tensor is innermost contiguous, one cannot transpose the innermost
     // dimension
     if (InnerContig) {
-        GPU_FAISS_ASSERT(dim1 != Dim - 1 && dim2 != Dim - 1);
+        //GPU_FAISS_ASSERT(dim1 != Dim - 1 && dim2 != Dim - 1);
     }
 
     IndexT newSize[Dim];
@@ -714,7 +761,7 @@ __host__ __device__ Tensor<T, Dim, false, IndexT, PtrTraits> Tensor<
         InnerContig,
         IndexT,
         PtrTraits>::transposeInnermost(int dim1) const {
-    GPU_FAISS_ASSERT(dim1 >= 0 && dim1 < Dim);
+    //GPU_FAISS_ASSERT(dim1 >= 0 && dim1 < Dim);
 
     // We are exchanging with the innermost dimension
     int dim2 = 1;
@@ -835,7 +882,7 @@ __host__ __device__ Tensor<T, NewDim, InnerContig, IndexT, PtrTraits> Tensor<
     // them).
     for (int i = 0; i < Dim - NewDim; ++i) {
         bool cont = isContiguousDim(i);
-        GPU_FAISS_ASSERT(cont);
+        //GPU_FAISS_ASSERT(cont);
     }
 
     IndexT newSize[NewDim];
@@ -888,7 +935,7 @@ __host__ __device__ Tensor<T, NewDim, InnerContig, IndexT, PtrTraits> Tensor<
     // in all of the dimensions we are collapsing (no padding in
     // them).
     for (int i = NewDim; i < Dim; ++i) {
-        GPU_FAISS_ASSERT(isContiguousDim(i));
+        //GPU_FAISS_ASSERT(isContiguousDim(i));
     }
 
     IndexT newSize[NewDim];
@@ -995,8 +1042,8 @@ __host__ __device__ Tensor<T, Dim, InnerContig, IndexT, PtrTraits> Tensor<
         PtrTraits>::narrow(int dim, IndexT start, IndexT size) {
     DataPtrType newData = data_;
 
-    GPU_FAISS_ASSERT(
-            start >= 0 && start < size_[dim] && (start + size) <= size_[dim]);
+    //GPU_FAISS_ASSERT(
+    //        start >= 0 && start < size_[dim] && (start + size) <= size_[dim]);
 
     if (start > 0) {
         newData += (size_t)start * stride_[dim];
@@ -1005,7 +1052,7 @@ __host__ __device__ Tensor<T, Dim, InnerContig, IndexT, PtrTraits> Tensor<
     IndexT newSize[Dim];
     for (int i = 0; i < Dim; ++i) {
         if (i == dim) {
-            GPU_FAISS_ASSERT(start + size <= size_[dim]);
+            //GPU_FAISS_ASSERT(start + size <= size_[dim]);
             newSize[i] = size;
         } else {
             newSize[i] = size_[i];
@@ -1031,9 +1078,9 @@ __host__ __device__ Tensor<T, NewDim, InnerContig, IndexT, PtrTraits> Tensor<
         InnerContig,
         IndexT,
         PtrTraits>::view(std::initializer_list<IndexT> sizes) {
-    GPU_FAISS_ASSERT(this->isContiguous());
+    //GPU_FAISS_ASSERT(this->isContiguous());
 
-    GPU_FAISS_ASSERT(sizes.size() == NewDim);
+    //GPU_FAISS_ASSERT(sizes.size() == NewDim);
 
     // The total size of the new view must be the same as the total size
     // of the old view
@@ -1044,7 +1091,7 @@ __host__ __device__ Tensor<T, NewDim, InnerContig, IndexT, PtrTraits> Tensor<
         newSize *= s;
     }
 
-    GPU_FAISS_ASSERT(curSize == newSize);
+    //GPU_FAISS_ASSERT(curSize == newSize);
     return Tensor<T, NewDim, true, IndexT, PtrTraits>(data(), sizes);
 }
 

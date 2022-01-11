@@ -9,6 +9,7 @@
 
 #include <faiss/gpu/utils/DeviceTensor.cuh>
 #include <faiss/gpu/utils/HostTensor.cuh>
+#include <faiss/gpu/utils/DeviceUtils.h>
 
 namespace faiss {
 namespace gpu {
